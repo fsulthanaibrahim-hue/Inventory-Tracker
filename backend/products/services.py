@@ -1,9 +1,7 @@
 from datetime import datetime, timezone
-
 from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo import ReturnDocument
-
 from .mongodb import products_collection
 
 
@@ -12,7 +10,7 @@ def serialize_product(product):
         return None
 
     return {
-        "_id": str(product["_id"]),
+        "id": str(product["_id"]),
         "name": product.get("name", ""),
         "description": product.get("description", ""),
         "category": product.get("category", "Other"),
@@ -47,9 +45,7 @@ def create_product(data):
     }
 
     result = products_collection.insert_one(product)
-
     product["_id"] = result.inserted_id
-
     return serialize_product(product)
 
 

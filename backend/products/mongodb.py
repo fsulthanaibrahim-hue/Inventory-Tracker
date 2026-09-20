@@ -23,9 +23,13 @@ client = MongoClient(MONGODB_URI)
 
 db = client[MONGODB_DATABASE]
 
+
+# MongoDB collections
 products_collection = db["products"]
+users_collection = db["users"]
 
 
+# Test MongoDB connection
 try:
     client.admin.command("ping")
     print("MongoDB connected successfully!")
@@ -34,7 +38,28 @@ except Exception as e:
 
 
 def ensure_indexes():
+
+    # Product name index
     products_collection.create_index(
         [("name", 1)],
         name="product_name_index"
     )
+
+    # User email index
+    users_collection.create_index(
+        [("email", 1)],
+        unique=True,
+        name="user"
+    )
+
+    # User username index
+    users_collection.create_index(
+        [("username", 1)],
+        unique=True,
+        name="username_unique_index"
+    )
+
+
+
+
+    
