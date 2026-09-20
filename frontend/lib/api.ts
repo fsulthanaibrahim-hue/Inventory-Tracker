@@ -1,6 +1,14 @@
-import axios from "axios";
+import axios, {
+  AxiosError,
+  InternalAxiosRequestConfig,
+} from "axios";
 
-import { getAccessToken } from "./auth";
+import {
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+  clearTokens,
+} from "./auth";
 
 import {
   Product,
@@ -18,6 +26,40 @@ const api = axios.create({
 });
 
 /* =========================
+   REFRESH ACCESS TOKEN
+========================= */
+
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = getRefreshToken();
+
+  if (!refreshToken) {
+    throw new Error(
+      "Refresh token is missing."
+    );
+  }
+
+  const response = await axios.post(
+    `${API_URL}/auth/token/refresh/`,
+    {
+      refresh: refreshToken,
+    }
+  );
+
+  const newAccessToken =
+    response.data.access;
+
+  const newRefreshToken =
+    response.data.refresh;
+
+  setTokens(
+    newAccessToken,
+    newRefreshToken
+  );
+
+  return newAccessToken;
+}
+
+/* =========================
    REQUEST INTERCEPTOR
 ========================= */
 
@@ -26,7 +68,8 @@ api.interceptors.request.use(
     const token = getAccessToken();
 
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization =
+        `Bearer ${token}`;
     }
 
     return config;
@@ -42,14 +85,74 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      console.error(
-        "401 Unauthorized: Access token is missing or invalid."
-      );
+
+  async (error: AxiosError) => {
+    const originalRequest =
+      error.config as
+        | (InternalAxiosRequestConfig & {
+            _retry?: boolean;
+          })
+        | undefined;
+
+    if (
+      error.response?.status !== 401 ||
+      !originalRequest
+    ) {
+      return Promise.reject(error);
     }
 
-    return Promise.reject(error);
+    if (originalRequest._retry) {
+      clearTokens();
+
+      if (typeof window !== "undefined") {
+        window.location.href =
+          "/login";
+      }
+
+      return Promise.reject(error);
+    }
+
+    if (
+      originalRequest.url?.includes(
+        "/auth/token/refresh/"
+      )
+    ) {
+      clearTokens();
+
+      if (typeof window !== "undefined") {
+        window.location.href =
+          "/login";
+      }
+
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+
+    try {
+      const newAccessToken =
+        await refreshAccessToken();
+
+      if (!originalRequest.headers) {
+        originalRequest.headers = {};
+      }
+
+      originalRequest.headers.Authorization =
+        `Bearer ${newAccessToken}`;
+
+      return api(originalRequest);
+    } catch (refreshError) {
+      clearTokens();
+
+      if (typeof window !== "undefined") {
+        window.location.href =
+          "/login";
+      }
+
+      return Promise.reject(
+        refreshError
+      );
+    }
   }
 );
 
@@ -63,9 +166,12 @@ export async function getProducts(
     category?: string;
   }
 ): Promise<Product[]> {
-  const response = await api.get("/products/", {
-    params,
-  });
+  const response = await api.get(
+    "/products/",
+    {
+      params,
+    }
+  );
 
   return response.data.products;
 }
@@ -158,5 +264,3 @@ export async function getInventoryStats() {
 }
 
 export default api;
-
-

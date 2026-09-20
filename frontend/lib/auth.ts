@@ -8,7 +8,7 @@ const REFRESH_TOKEN_KEY = "refresh_token";
 export function saveTokens(
   accessToken: string,
   refreshToken: string
-) {
+): void {
   if (typeof window === "undefined") {
     return;
   }
@@ -18,12 +18,10 @@ export function saveTokens(
     accessToken
   );
 
-  if (refreshToken) {
-    localStorage.setItem(
-      REFRESH_TOKEN_KEY,
-      refreshToken
-    );
-  }
+  localStorage.setItem(
+    REFRESH_TOKEN_KEY,
+    refreshToken
+  );
 }
 
 /* =========================
@@ -56,7 +54,7 @@ export function getRefreshToken(): string | null {
 
 export function setTokens(
   accessToken: string,
-  refreshToken: string
+  refreshToken?: string
 ): void {
   if (typeof window === "undefined") {
     return;
@@ -67,10 +65,12 @@ export function setTokens(
     accessToken
   );
 
-  localStorage.setItem(
-    REFRESH_TOKEN_KEY,
-    refreshToken
-  );
+  if (refreshToken) {
+    localStorage.setItem(
+      REFRESH_TOKEN_KEY,
+      refreshToken
+    );
+  }
 }
 
 /* =========================
@@ -82,8 +82,13 @@ export function clearTokens(): void {
     return;
   }
 
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(
+    ACCESS_TOKEN_KEY
+  );
+
+  localStorage.removeItem(
+    REFRESH_TOKEN_KEY
+  );
 }
 
 /* =========================
@@ -109,4 +114,3 @@ export function removeItem(): void {
 export function isAuthenticated(): boolean {
   return !!getAccessToken();
 }
-

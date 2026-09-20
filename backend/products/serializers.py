@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 
 
@@ -5,7 +6,7 @@ class ProductSerializer(serializers.Serializer):
     name = serializers.CharField(required=True, max_length=150)
     description = serializers.CharField(required=False, allow_blank=True, default="")
     category = serializers.ChoiceField(choices=["Sunglasses", "Accessories", "Other"])
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
     quantity = serializers.IntegerField(min_value=0)
     minimum_stock = serializers.IntegerField(min_value=0)
 

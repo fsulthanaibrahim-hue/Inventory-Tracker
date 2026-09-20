@@ -1,9 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ArrowDown, ArrowUp, Boxes, Package, Plus, RefreshCw, Search, ShoppingBag, TrendingDown } from "lucide-react";
-import { getProducts, deleteProduct, updateStock } from "@/lib/api";
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  Boxes,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  ShoppingBag,
+  TrendingDown,
+} from "lucide-react";
 
+import {
+  getProducts,
+  createProduct,
+  deleteProduct,
+  updateStock,
+} from "@/lib/api";
 
 type Product = {
   id: string;
@@ -18,25 +34,37 @@ type Product = {
 };
 
 type DashboardProps = {
-  onAddProduct?: () => void;
   onEditProduct?: (product: Product) => void;
 };
 
 export default function Dashboard({
-  onAddProduct,
   onEditProduct,
 }: DashboardProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
 
-  // ================================
+  // Add Product form state
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    category: "",
+    price: "",
+    quantity: "",
+    minimum_stock: "",
+  });
+
+  const [addingProduct, setAddingProduct] = useState(false);
+
+  // ============================================
   // LOAD PRODUCTS
-  // ================================
+  // ============================================
+
   const loadProducts = async (showRefresh = false) => {
     try {
       setError("");
@@ -89,16 +117,18 @@ export default function Dashboard({
     }
   };
 
-  // ================================
-  // LOAD WHEN SEARCH/CATEGORY CHANGES
-  // ================================
+  // ============================================
+  // LOAD WHEN SEARCH / CATEGORY CHANGES
+  // ============================================
+
   useEffect(() => {
     loadProducts();
   }, [search, category]);
 
-  // ================================
-  // CALCULATE DASHBOARD STATS
-  // ================================
+  // ============================================
+  // DASHBOARD STATS
+  // ============================================
+
   const stats = useMemo(() => {
     const totalProducts = products.length;
 
@@ -110,6 +140,7 @@ export default function Dashboard({
 
     const lowStock = products.filter((product) => {
       const quantity = Number(product.quantity || 0);
+
       const minimumStock = Number(
         product.minimum_stock || 0
       );
@@ -133,9 +164,10 @@ export default function Dashboard({
     };
   }, [products]);
 
-  // ================================
+  // ============================================
   // DELETE PRODUCT
-  // ================================
+  // ============================================
+
   const handleDelete = async (productId: string) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this product?"
@@ -162,12 +194,13 @@ export default function Dashboard({
     }
   };
 
-  // ================================
+  // ============================================
   // UPDATE STOCK
-  // ================================
+  // ============================================
+
   const handleStockUpdate = async (
     productId: string,
-    action: "add" | "remove",
+    action: "add" | "remove"
   ) => {
     const value = window.prompt(
       action === "add"
@@ -195,13 +228,10 @@ export default function Dashboard({
     try {
       setError("");
 
-      const response = await updateStock(
-        productId, 
-        {
-          action,
-          quantity,
-        }
-    );
+      const response = await updateStock(productId, {
+        action,
+        quantity,
+      });
 
       const responseData =
         response?.data ?? response;
@@ -239,9 +269,62 @@ export default function Dashboard({
     }
   };
 
-  // ================================
+  // ============================================
+  // ADD PRODUCT
+  // ============================================
+
+  const handleAddProduct = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    try {
+      setAddingProduct(true);
+      setError("");
+
+      await createProduct({
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        category: formData.category as
+          | "Sunglasses"
+          | "Accessories"
+          | "Other",
+        price: Number(formData.price),
+        quantity: Number(formData.quantity),
+        minimum_stock: Number(formData.minimum_stock),
+      });
+
+      // Clear form
+      setFormData({
+        name: "",
+        description: "",
+        category: "",
+        price: "",
+        quantity: "",
+        minimum_stock: "",
+      });
+
+      // Close form
+      setShowAddForm(false);
+
+      // Reload products
+      await loadProducts();
+    } catch (err) {
+      console.error(
+        "Add product failed:",
+        err
+      );
+
+      setError("Failed to add the product.");
+    } finally {
+      setAddingProduct(false);
+    }
+  };
+
+  // ============================================
   // STOCK STATUS
-  // ================================
+  // ============================================
+
   const getStockStatus = (product: Product) => {
     const quantity = Number(
       product.quantity || 0
@@ -274,9 +357,10 @@ export default function Dashboard({
     };
   };
 
-  // ================================
+  // ============================================
   // FORMAT PRICE
-  // ================================
+  // ============================================
+
   const formatPrice = (
     price: number | string
   ) => {
@@ -295,14 +379,20 @@ export default function Dashboard({
     )}`;
   };
 
+  // ============================================
+  // RETURN
+  // ============================================
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="flex">
         <main className="flex-1 min-w-0">
           <div className="p-4 sm:p-6 lg:p-8">
-            {/* ================================
+
+            {/* ========================================
                 PAGE HEADING
-            ================================= */}
+            ======================================== */}
+
             <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
@@ -316,7 +406,9 @@ export default function Dashboard({
               </div>
 
               <div className="flex gap-3">
-                {/* Refresh */}
+
+                {/* Refresh Button */}
+
                 <button
                   type="button"
                   onClick={() =>
@@ -337,10 +429,13 @@ export default function Dashboard({
                   Refresh
                 </button>
 
-                {/* Add Product */}
+                {/* Add Product Button */}
+
                 <button
                   type="button"
-                  onClick={onAddProduct}
+                  onClick={() =>
+                    setShowAddForm(true)
+                  }
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
                 >
                   <Plus size={18} />
@@ -350,9 +445,10 @@ export default function Dashboard({
               </div>
             </div>
 
-            {/* ================================
+            {/* ========================================
                 ERROR MESSAGE
-            ================================= */}
+            ======================================== */}
+
             {error && (
               <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
                 <AlertCircle
@@ -372,10 +468,231 @@ export default function Dashboard({
               </div>
             )}
 
-            {/* ================================
+            {/* ========================================
+                ADD PRODUCT FORM
+            ======================================== */}
+
+            {showAddForm && (
+              <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+
+                {/* Form Header */}
+
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      Add New Product
+                    </h2>
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      Add a new product to your inventory.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowAddForm(false)
+                    }
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                {/* Form */}
+
+                <form
+                  onSubmit={handleAddProduct}
+                >
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+
+                    {/* Product Name */}
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Product Name
+                      </label>
+
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(event) =>
+                          setFormData({
+                            ...formData,
+                            name: event.target.value,
+                          })
+                        }
+                        placeholder="e.g. Ray-Ban Aviator"
+                        required
+                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+                      />
+                    </div>
+
+                    {/* Category */}
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Category
+                      </label>
+
+                      <select
+                        value={formData.category}
+                        onChange={(event) =>
+                          setFormData({
+                            ...formData,
+                            category:
+                              event.target.value,
+                          })
+                        }
+                        required
+                        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+                      >
+                        <option value="">
+                          Select category
+                        </option>
+
+                        <option value="Sunglasses">
+                          Sunglasses
+                        </option>
+
+                        <option value="Accessories">
+                          Accessories
+                        </option>
+
+                        <option value="Other">
+                          Other
+                        </option>
+                      </select>
+                    </div>
+
+                    {/* Description */}
+
+                    <div className="md:col-span-2">
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Description
+                      </label>
+
+                      <textarea
+                        value={formData.description}
+                        onChange={(event) =>
+                          setFormData({
+                            ...formData,
+                            description:
+                              event.target.value,
+                          })
+                        }
+                        placeholder="Enter product description"
+                        rows={3}
+                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+                      />
+                    </div>
+
+                    {/* Price */}
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Price
+                      </label>
+
+                      <input
+                        type="number"
+                        value={formData.price}
+                        onChange={(event) =>
+                          setFormData({
+                            ...formData,
+                            price: event.target.value,
+                          })
+                        }
+                        placeholder="e.g. 2500"
+                        min="0"
+                        step="0.01"
+                        required
+                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+                      />
+                    </div>
+
+                    {/* Quantity */}
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Quantity
+                      </label>
+
+                      <input
+                        type="number"
+                        value={formData.quantity}
+                        onChange={(event) =>
+                          setFormData({
+                            ...formData,
+                            quantity:
+                              event.target.value,
+                          })
+                        }
+                        placeholder="e.g. 10"
+                        min="0"
+                        required
+                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+                      />
+                    </div>
+
+                    {/* Minimum Stock */}
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Minimum Stock
+                      </label>
+
+                      <input
+                        type="number"
+                        value={formData.minimum_stock}
+                        onChange={(event) =>
+                          setFormData({
+                            ...formData,
+                            minimum_stock:
+                              event.target.value,
+                          })
+                        }
+                        placeholder="e.g. 5"
+                        min="0"
+                        required
+                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Form Buttons */}
+
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowAddForm(false)
+                      }
+                      className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={addingProduct}
+                      className="rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {addingProduct
+                        ? "Adding..."
+                        : "Add Product"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* ========================================
                 STAT CARDS
-            ================================= */}
+            ======================================== */}
+
             <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
               <StatCard
                 title="Total Products"
                 value={stats.totalProducts}
@@ -413,13 +730,17 @@ export default function Dashboard({
               />
             </div>
 
-            {/* ================================
+            {/* ========================================
                 INVENTORY SECTION
-            ================================= */}
+            ======================================== */}
+
             <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
+
               {/* Section Header */}
+
               <div className="border-b border-gray-200 p-4 sm:p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
                       Inventory
@@ -431,11 +752,12 @@ export default function Dashboard({
                     </p>
                   </div>
 
-                  {/* ================================
-                      FILTERS
-                  ================================= */}
+                  {/* Filters */}
+
                   <div className="flex flex-col gap-3 sm:flex-row">
+
                     {/* Search */}
+
                     <div className="relative">
                       <Search
                         size={18}
@@ -456,6 +778,7 @@ export default function Dashboard({
                     </div>
 
                     {/* Category */}
+
                     <select
                       value={category}
                       onChange={(event) =>
@@ -485,9 +808,10 @@ export default function Dashboard({
                 </div>
               </div>
 
-              {/* ================================
+              {/* ========================================
                   LOADING
-              ================================= */}
+              ======================================== */}
+
               {loading ? (
                 <div className="flex min-h-[300px] items-center justify-center">
                   <div className="text-center">
@@ -502,11 +826,14 @@ export default function Dashboard({
                   </div>
                 </div>
               ) : products.length === 0 ? (
-                /* ================================
+
+                /* ========================================
                    EMPTY STATE
-                ================================= */
+                ======================================== */
+
                 <div className="flex min-h-[300px] items-center justify-center p-6">
                   <div className="text-center">
+
                     <Package
                       size={40}
                       className="mx-auto text-gray-300"
@@ -523,7 +850,9 @@ export default function Dashboard({
 
                     <button
                       type="button"
-                      onClick={onAddProduct}
+                      onClick={() =>
+                        setShowAddForm(true)
+                      }
                       className="mt-4 inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
                     >
                       <Plus size={16} />
@@ -532,14 +861,19 @@ export default function Dashboard({
                     </button>
                   </div>
                 </div>
+
               ) : (
-                /* ================================
+
+                /* ========================================
                    PRODUCT TABLE
-                ================================= */
+                ======================================== */
+
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[950px]">
+
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+
                         <th className="px-6 py-4">
                           Product
                         </th>
@@ -563,10 +897,12 @@ export default function Dashboard({
                         <th className="px-6 py-4 text-right">
                           Actions
                         </th>
+
                       </tr>
                     </thead>
 
                     <tbody className="divide-y divide-gray-100">
+
                       {products.map((product) => {
                         const stockStatus =
                           getStockStatus(product);
@@ -576,7 +912,9 @@ export default function Dashboard({
                             key={product.id}
                             className="hover:bg-gray-50"
                           >
+
                             {/* Product */}
+
                             <td className="px-6 py-4">
                               <div>
                                 <p className="font-medium text-gray-900">
@@ -594,6 +932,7 @@ export default function Dashboard({
                             </td>
 
                             {/* Category */}
+
                             <td className="px-6 py-4">
                               <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
                                 {product.category}
@@ -601,6 +940,7 @@ export default function Dashboard({
                             </td>
 
                             {/* Price */}
+
                             <td className="px-6 py-4 text-sm font-medium text-gray-900">
                               {formatPrice(
                                 product.price
@@ -608,12 +948,12 @@ export default function Dashboard({
                             </td>
 
                             {/* Stock */}
+
                             <td className="px-6 py-4">
                               <div>
                                 <p className="font-medium text-gray-900">
                                   {Number(
-                                    product.quantity ||
-                                      0
+                                    product.quantity || 0
                                   )}
                                 </p>
 
@@ -628,6 +968,7 @@ export default function Dashboard({
                             </td>
 
                             {/* Status */}
+
                             <td className="px-6 py-4">
                               <span
                                 className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${stockStatus.className}`}
@@ -639,9 +980,12 @@ export default function Dashboard({
                             </td>
 
                             {/* Actions */}
+
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-end gap-2">
+
                                 {/* Add Stock */}
+
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -659,6 +1003,7 @@ export default function Dashboard({
                                 </button>
 
                                 {/* Remove Stock */}
+
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -681,6 +1026,7 @@ export default function Dashboard({
                                 </button>
 
                                 {/* Edit */}
+
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -694,6 +1040,7 @@ export default function Dashboard({
                                 </button>
 
                                 {/* Delete */}
+
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -705,19 +1052,23 @@ export default function Dashboard({
                                 >
                                   Delete
                                 </button>
+
                               </div>
                             </td>
+
                           </tr>
                         );
                       })}
+
                     </tbody>
                   </table>
                 </div>
               )}
 
-              {/* ================================
+              {/* ========================================
                   FOOTER
-              ================================= */}
+              ======================================== */}
+
               {!loading &&
                 products.length > 0 && (
                   <div className="border-t border-gray-200 px-6 py-4">
@@ -759,6 +1110,7 @@ function StatCard({
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between">
+
         <div>
           <p className="text-sm font-medium text-gray-500">
             {title}
@@ -772,6 +1124,7 @@ function StatCard({
         <div className="rounded-lg bg-gray-100 p-3 text-gray-700">
           {icon}
         </div>
+
       </div>
 
       <p className="mt-3 text-xs text-gray-500">
@@ -780,4 +1133,3 @@ function StatCard({
     </div>
   );
 }
-
