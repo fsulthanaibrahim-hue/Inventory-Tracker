@@ -3,22 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
-  ArrowDown,
-  ArrowUp,
   Boxes,
   Package,
   Plus,
   RefreshCw,
   Search,
-  ShoppingBag,
-  TrendingDown,
 } from "lucide-react";
 
 import {
   getProducts,
   createProduct,
+  updateProduct,
   deleteProduct,
-  updateStock,
 } from "@/lib/api";
 
 type Product = {
@@ -33,39 +29,58 @@ type Product = {
   updated_at?: string;
 };
 
-type DashboardProps = {
-  onEditProduct?: (product: Product) => void;
+type FormData = {
+  name: string;
+  description: string;
+  category: string;
+  price: string;
+  quantity: string;
+  minimum_stock: string;
 };
 
-export default function Dashboard({
-  onEditProduct,
-}: DashboardProps) {
+const emptyForm: FormData = {
+  name: "",
+  description: "",
+  category: "",
+  price: "",
+  quantity: "",
+  minimum_stock: "",
+};
+
+export default function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
 
-  // Add Product form state
-  const [showAddForm, setShowAddForm] = useState(false);
+  // ============================================
+  // ADD / EDIT FORM STATE
+  // ============================================
 
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    category: "",
-    price: "",
-    quantity: "",
-    minimum_stock: "",
-  });
+  const [showProductForm, setShowProductForm] =
+    useState(false);
 
-  const [addingProduct, setAddingProduct] = useState(false);
+  const [editingProductId, setEditingProductId] =
+    useState<string | null>(null);
+
+  const [formData, setFormData] =
+    useState<FormData>(emptyForm);
+
+  const [savingProduct, setSavingProduct] =
+    useState(false);
 
   // ============================================
   // LOAD PRODUCTS
   // ============================================
 
-  const loadProducts = async (showRefresh = false) => {
+  const loadProducts = async (
+    showRefresh = false
+  ) => {
     try {
       setError("");
 
@@ -78,7 +93,9 @@ export default function Dashboard({
       const response = await getProducts({
         search: search.trim() || undefined,
         category:
-          category !== "All" ? category : undefined,
+          category !== "All"
+            ? category
+            : undefined,
       });
 
       /*
@@ -104,7 +121,10 @@ export default function Dashboard({
         setProducts([]);
       }
     } catch (err) {
-      console.error("Failed to load products:", err);
+      console.error(
+        "Failed to load products:",
+        err
+      );
 
       setError(
         "Unable to load products. Please check your connection and try again."
@@ -127,6 +147,7 @@ export default function Dashboard({
 
   // ============================================
   // DASHBOARD STATS
+  // ONLY TOTAL PRODUCTS + TOTAL STOCK
   // ============================================
 
   const stats = useMemo(() => {
@@ -134,41 +155,153 @@ export default function Dashboard({
 
     const totalStock = products.reduce(
       (total, product) =>
-        total + Number(product.quantity || 0),
+        total +
+        Number(product.quantity || 0),
       0
     );
-
-    const lowStock = products.filter((product) => {
-      const quantity = Number(product.quantity || 0);
-
-      const minimumStock = Number(
-        product.minimum_stock || 0
-      );
-
-      return (
-        quantity > 0 &&
-        quantity <= minimumStock
-      );
-    }).length;
-
-    const outOfStock = products.filter(
-      (product) =>
-        Number(product.quantity || 0) === 0
-    ).length;
 
     return {
       totalProducts,
       totalStock,
-      lowStock,
-      outOfStock,
     };
   }, [products]);
+
+  // ============================================
+  // RESET FORM
+  // ============================================
+
+  const resetForm = () => {
+    setFormData(emptyForm);
+    setEditingProductId(null);
+    setShowProductForm(false);
+  };
+
+  // ============================================
+  // OPEN ADD PRODUCT FORM
+  // ============================================
+
+  const handleOpenAddForm = () => {
+    setError("");
+
+    setFormData(emptyForm);
+    setEditingProductId(null);
+    setShowProductForm(true);
+  };
+
+  // ============================================
+  // OPEN EDIT PRODUCT FORM
+  // ============================================
+
+  const handleEdit = (product: Product) => {
+    setError("");
+
+    setEditingProductId(product.id);
+
+    setFormData({
+      name: product.name || "",
+      description: product.description || "",
+      category: product.category || "",
+      price: String(product.price ?? ""),
+      quantity: String(
+        product.quantity ?? ""
+      ),
+      minimum_stock: String(
+        product.minimum_stock ?? ""
+      ),
+    });
+
+    setShowProductForm(true);
+
+    // Scroll to form
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  // ============================================
+  // SAVE PRODUCT
+  // ADD OR UPDATE
+  // ============================================
+
+  const handleSubmitProduct = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    try {
+      setSavingProduct(true);
+      setError("");
+
+      const productData = {
+        name: formData.name.trim(),
+        description:
+          formData.description.trim(),
+        category:
+          formData.category as
+            | "Sunglasses"
+            | "Accessories"
+            | "Other",
+        price: Number(formData.price),
+        quantity: Number(formData.quantity),
+        minimum_stock: Number(
+          formData.minimum_stock
+        ),
+      };
+
+      // ========================================
+      // UPDATE EXISTING PRODUCT
+      // ========================================
+
+      if (editingProductId) {
+        await updateProduct(
+          editingProductId,
+          productData
+        );
+
+        resetForm();
+
+        await loadProducts(true);
+
+        return;
+      }
+
+      // ========================================
+      // CREATE NEW PRODUCT
+      // ========================================
+
+      await createProduct(productData);
+
+      resetForm();
+
+      await loadProducts(true);
+    } catch (err) {
+      console.error(
+        "Save product failed:",
+        err
+      );
+
+      if (editingProductId) {
+        setError(
+          "Failed to update the product."
+        );
+      } else {
+        setError(
+          "Failed to add the product."
+        );
+      }
+    } finally {
+      setSavingProduct(false);
+    }
+  };
 
   // ============================================
   // DELETE PRODUCT
   // ============================================
 
-  const handleDelete = async (productId: string) => {
+  const handleDelete = async (
+    productId: string
+  ) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this product?"
     );
@@ -184,140 +317,25 @@ export default function Dashboard({
 
       setProducts((currentProducts) =>
         currentProducts.filter(
-          (product) => product.id !== productId
+          (product) =>
+            product.id !== productId
         )
       );
-    } catch (err) {
-      console.error("Delete failed:", err);
 
-      setError("Failed to delete the product.");
-    }
-  };
-
-  // ============================================
-  // UPDATE STOCK
-  // ============================================
-
-  const handleStockUpdate = async (
-    productId: string,
-    action: "add" | "remove"
-  ) => {
-    const value = window.prompt(
-      action === "add"
-        ? "How many items do you want to add?"
-        : "How many items do you want to remove?"
-    );
-
-    if (value === null || value.trim() === "") {
-      return;
-    }
-
-    const quantity = Number(value);
-
-    if (
-      !Number.isInteger(quantity) ||
-      quantity <= 0
-    ) {
-      window.alert(
-        "Please enter a valid positive whole number."
-      );
-
-      return;
-    }
-
-    try {
-      setError("");
-
-      const response = await updateStock(productId, {
-        action,
-        quantity,
-      });
-
-      const responseData =
-        response?.data ?? response;
-
-      const updatedProduct =
-        responseData?.product ??
-        responseData?.data ??
-        responseData;
-
-      if (
-        updatedProduct &&
-        typeof updatedProduct === "object" &&
-        updatedProduct.id
-      ) {
-        setProducts((currentProducts) =>
-          currentProducts.map((product) =>
-            product.id === productId
-              ? {
-                  ...product,
-                  ...updatedProduct,
-                }
-              : product
-          )
-        );
-      } else {
-        await loadProducts(true);
+      // If currently editing this product,
+      // close the form.
+      if (editingProductId === productId) {
+        resetForm();
       }
     } catch (err) {
       console.error(
-        "Stock update failed:",
+        "Delete failed:",
         err
       );
 
-      setError("Failed to update stock.");
-    }
-  };
-
-  // ============================================
-  // ADD PRODUCT
-  // ============================================
-
-  const handleAddProduct = async (
-    event: React.FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
-
-    try {
-      setAddingProduct(true);
-      setError("");
-
-      await createProduct({
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        category: formData.category as
-          | "Sunglasses"
-          | "Accessories"
-          | "Other",
-        price: Number(formData.price),
-        quantity: Number(formData.quantity),
-        minimum_stock: Number(formData.minimum_stock),
-      });
-
-      // Clear form
-      setFormData({
-        name: "",
-        description: "",
-        category: "",
-        price: "",
-        quantity: "",
-        minimum_stock: "",
-      });
-
-      // Close form
-      setShowAddForm(false);
-
-      // Reload products
-      await loadProducts();
-    } catch (err) {
-      console.error(
-        "Add product failed:",
-        err
+      setError(
+        "Failed to delete the product."
       );
-
-      setError("Failed to add the product.");
-    } finally {
-      setAddingProduct(false);
     }
   };
 
@@ -325,7 +343,9 @@ export default function Dashboard({
   // STOCK STATUS
   // ============================================
 
-  const getStockStatus = (product: Product) => {
+  const getStockStatus = (
+    product: Product
+  ) => {
     const quantity = Number(
       product.quantity || 0
     );
@@ -386,7 +406,7 @@ export default function Dashboard({
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="flex">
-        <main className="flex-1 min-w-0">
+        <main className="min-w-0 flex-1">
           <div className="p-4 sm:p-6 lg:p-8">
 
             {/* ========================================
@@ -407,7 +427,7 @@ export default function Dashboard({
 
               <div className="flex gap-3">
 
-                {/* Refresh Button */}
+                {/* Refresh */}
 
                 <button
                   type="button"
@@ -429,12 +449,12 @@ export default function Dashboard({
                   Refresh
                 </button>
 
-                {/* Add Product Button */}
+                {/* Add Product */}
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowAddForm(true)
+                  onClick={
+                    handleOpenAddForm
                   }
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
                 >
@@ -469,10 +489,10 @@ export default function Dashboard({
             )}
 
             {/* ========================================
-                ADD PRODUCT FORM
+                ADD / EDIT PRODUCT FORM
             ======================================== */}
 
-            {showAddForm && (
+            {showProductForm && (
               <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 
                 {/* Form Header */}
@@ -480,19 +500,21 @@ export default function Dashboard({
                 <div className="mb-6 flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
-                      Add New Product
+                      {editingProductId
+                        ? "Edit Product"
+                        : "Add New Product"}
                     </h2>
 
                     <p className="mt-1 text-sm text-gray-500">
-                      Add a new product to your inventory.
+                      {editingProductId
+                        ? "Update the product details below."
+                        : "Add a new product to your inventory."}
                     </p>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setShowAddForm(false)
-                    }
+                    onClick={resetForm}
                     className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                   >
                     Cancel
@@ -502,7 +524,9 @@ export default function Dashboard({
                 {/* Form */}
 
                 <form
-                  onSubmit={handleAddProduct}
+                  onSubmit={
+                    handleSubmitProduct
+                  }
                 >
                   <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
@@ -536,7 +560,9 @@ export default function Dashboard({
                       </label>
 
                       <select
-                        value={formData.category}
+                        value={
+                          formData.category
+                        }
                         onChange={(event) =>
                           setFormData({
                             ...formData,
@@ -573,7 +599,9 @@ export default function Dashboard({
                       </label>
 
                       <textarea
-                        value={formData.description}
+                        value={
+                          formData.description
+                        }
                         onChange={(event) =>
                           setFormData({
                             ...formData,
@@ -604,7 +632,7 @@ export default function Dashboard({
                           })
                         }
                         placeholder="e.g. 2500"
-                        min="0"
+                        min="0.01"
                         step="0.01"
                         required
                         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
@@ -630,6 +658,7 @@ export default function Dashboard({
                         }
                         placeholder="e.g. 10"
                         min="0"
+                        step="1"
                         required
                         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                       />
@@ -644,7 +673,9 @@ export default function Dashboard({
 
                       <input
                         type="number"
-                        value={formData.minimum_stock}
+                        value={
+                          formData.minimum_stock
+                        }
                         onChange={(event) =>
                           setFormData({
                             ...formData,
@@ -654,6 +685,7 @@ export default function Dashboard({
                         }
                         placeholder="e.g. 5"
                         min="0"
+                        step="1"
                         required
                         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                       />
@@ -665,9 +697,7 @@ export default function Dashboard({
                   <div className="mt-6 flex justify-end gap-3">
                     <button
                       type="button"
-                      onClick={() =>
-                        setShowAddForm(false)
-                      }
+                      onClick={resetForm}
                       className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                     >
                       Cancel
@@ -675,11 +705,15 @@ export default function Dashboard({
 
                     <button
                       type="submit"
-                      disabled={addingProduct}
+                      disabled={savingProduct}
                       className="rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {addingProduct
-                        ? "Adding..."
+                      {savingProduct
+                        ? editingProductId
+                          ? "Updating..."
+                          : "Adding..."
+                        : editingProductId
+                        ? "Update Product"
                         : "Add Product"}
                     </button>
                   </div>
@@ -689,45 +723,71 @@ export default function Dashboard({
 
             {/* ========================================
                 STAT CARDS
+                ONLY 2 CARDS
             ======================================== */}
 
-            <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
 
-              <StatCard
-                title="Total Products"
-                value={stats.totalProducts}
-                icon={
-                  <Package size={22} />
-                }
-                description="Products in inventory"
-              />
+              {/* ======================================
+                  TOTAL PRODUCTS
+              ====================================== */}
 
-              <StatCard
-                title="Total Stock"
-                value={stats.totalStock}
-                icon={
-                  <Boxes size={22} />
-                }
-                description="Total available units"
-              />
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between">
 
-              <StatCard
-                title="Low Stock"
-                value={stats.lowStock}
-                icon={
-                  <TrendingDown size={22} />
-                }
-                description="Products need attention"
-              />
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">
+                      Total Products
+                    </p>
 
-              <StatCard
-                title="Out of Stock"
-                value={stats.outOfStock}
-                icon={
-                  <ShoppingBag size={22} />
-                }
-                description="Products unavailable"
-              />
+                    <p className="mt-2 text-3xl font-bold text-gray-900">
+                      {stats.totalProducts.toLocaleString(
+                        "en-IN"
+                      )}
+                    </p>
+
+                    <p className="mt-3 text-xs text-gray-500">
+                      Products in inventory
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-gray-100 p-3 text-gray-700">
+                    <Package size={22} />
+                  </div>
+
+                </div>
+              </div>
+
+              {/* ======================================
+                  TOTAL STOCK
+              ====================================== */}
+
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between">
+
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">
+                      Total Stock
+                    </p>
+
+                    <p className="mt-2 text-3xl font-bold text-gray-900">
+                      {stats.totalStock.toLocaleString(
+                        "en-IN"
+                      )}
+                    </p>
+
+                    <p className="mt-3 text-xs text-gray-500">
+                      Total available units
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-gray-100 p-3 text-gray-700">
+                    <Boxes size={22} />
+                  </div>
+
+                </div>
+              </div>
+
             </div>
 
             {/* ========================================
@@ -825,7 +885,8 @@ export default function Dashboard({
                     </p>
                   </div>
                 </div>
-              ) : products.length === 0 ? (
+              ) : products.length ===
+                0 ? (
 
                 /* ========================================
                    EMPTY STATE
@@ -850,8 +911,8 @@ export default function Dashboard({
 
                     <button
                       type="button"
-                      onClick={() =>
-                        setShowAddForm(true)
+                      onClick={
+                        handleOpenAddForm
                       }
                       className="mt-4 inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
                     >
@@ -869,7 +930,7 @@ export default function Dashboard({
                 ======================================== */
 
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[950px]">
+                  <table className="w-full min-w-[850px]">
 
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -897,168 +958,137 @@ export default function Dashboard({
                         <th className="px-6 py-4 text-right">
                           Actions
                         </th>
-
                       </tr>
                     </thead>
 
                     <tbody className="divide-y divide-gray-100">
 
-                      {products.map((product) => {
-                        const stockStatus =
-                          getStockStatus(product);
+                      {products.map(
+                        (product) => {
+                          const stockStatus =
+                            getStockStatus(
+                              product
+                            );
 
-                        return (
-                          <tr
-                            key={product.id}
-                            className="hover:bg-gray-50"
-                          >
+                          return (
+                            <tr
+                              key={
+                                product.id
+                              }
+                              className="hover:bg-gray-50"
+                            >
 
-                            {/* Product */}
+                              {/* Product */}
 
-                            <td className="px-6 py-4">
-                              <div>
-                                <p className="font-medium text-gray-900">
-                                  {product.name}
-                                </p>
-
-                                {product.description && (
-                                  <p className="mt-1 max-w-xs truncate text-sm text-gray-500">
+                              <td className="px-6 py-4">
+                                <div>
+                                  <p className="font-medium text-gray-900">
                                     {
-                                      product.description
+                                      product.name
                                     }
                                   </p>
+
+                                  {product.description && (
+                                    <p className="mt-1 max-w-xs truncate text-sm text-gray-500">
+                                      {
+                                        product.description
+                                      }
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Category */}
+
+                              <td className="px-6 py-4">
+                                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                                  {
+                                    product.category
+                                  }
+                                </span>
+                              </td>
+
+                              {/* Price */}
+
+                              <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                                {formatPrice(
+                                  product.price
                                 )}
-                              </div>
-                            </td>
+                              </td>
 
-                            {/* Category */}
+                              {/* Stock */}
 
-                            <td className="px-6 py-4">
-                              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                                {product.category}
-                              </span>
-                            </td>
+                              <td className="px-6 py-4">
+                                <div>
+                                  <p className="font-medium text-gray-900">
+                                    {Number(
+                                      product.quantity ||
+                                        0
+                                    )}
+                                  </p>
 
-                            {/* Price */}
+                                  <p className="text-xs text-gray-500">
+                                    Min:{" "}
+                                    {Number(
+                                      product.minimum_stock ||
+                                        0
+                                    )}
+                                  </p>
+                                </div>
+                              </td>
 
-                            <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                              {formatPrice(
-                                product.price
-                              )}
-                            </td>
+                              {/* Status */}
 
-                            {/* Stock */}
-
-                            <td className="px-6 py-4">
-                              <div>
-                                <p className="font-medium text-gray-900">
-                                  {Number(
-                                    product.quantity || 0
-                                  )}
-                                </p>
-
-                                <p className="text-xs text-gray-500">
-                                  Min:{" "}
-                                  {Number(
-                                    product.minimum_stock ||
-                                      0
-                                  )}
-                                </p>
-                              </div>
-                            </td>
-
-                            {/* Status */}
-
-                            <td className="px-6 py-4">
-                              <span
-                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${stockStatus.className}`}
-                              >
-                                {
-                                  stockStatus.label
-                                }
-                              </span>
-                            </td>
-
-                            {/* Actions */}
-
-                            <td className="px-6 py-4">
-                              <div className="flex items-center justify-end gap-2">
-
-                                {/* Add Stock */}
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleStockUpdate(
-                                      product.id,
-                                      "add"
-                                    )
-                                  }
-                                  title="Add stock"
-                                  className="rounded-lg border border-gray-200 p-2 text-green-600 transition hover:bg-green-50"
+                              <td className="px-6 py-4">
+                                <span
+                                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${stockStatus.className}`}
                                 >
-                                  <ArrowUp
-                                    size={16}
-                                  />
-                                </button>
-
-                                {/* Remove Stock */}
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleStockUpdate(
-                                      product.id,
-                                      "remove"
-                                    )
+                                  {
+                                    stockStatus.label
                                   }
-                                  title="Remove stock"
-                                  disabled={
-                                    Number(
-                                      product.quantity
-                                    ) === 0
-                                  }
-                                  className="rounded-lg border border-gray-200 p-2 text-orange-600 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                  <ArrowDown
-                                    size={16}
-                                  />
-                                </button>
+                                </span>
+                              </td>
 
-                                {/* Edit */}
+                              {/* Actions */}
 
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    onEditProduct?.(
-                                      product
-                                    )
-                                  }
-                                  className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
-                                >
-                                  Edit
-                                </button>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center justify-end gap-2">
 
-                                {/* Delete */}
+                                  {/* EDIT */}
 
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleDelete(
-                                      product.id
-                                    )
-                                  }
-                                  className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                                >
-                                  Delete
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleEdit(
+                                        product
+                                      )
+                                    }
+                                    className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
+                                  >
+                                    Edit
+                                  </button>
 
-                              </div>
-                            </td>
+                                  {/* DELETE */}
 
-                          </tr>
-                        );
-                      })}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDelete(
+                                        product.id
+                                      )
+                                    }
+                                    className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                                  >
+                                    Delete
+                                  </button>
+
+                                </div>
+                              </td>
+
+                            </tr>
+                          );
+                        }
+                      )}
 
                     </tbody>
                   </table>
@@ -1075,10 +1105,13 @@ export default function Dashboard({
                     <p className="text-sm text-gray-500">
                       Showing{" "}
                       <span className="font-medium text-gray-900">
-                        {products.length}
+                        {
+                          products.length
+                        }
                       </span>{" "}
                       product
-                      {products.length !== 1
+                      {products.length !==
+                      1
                         ? "s"
                         : ""}
                     </p>
@@ -1092,44 +1125,3 @@ export default function Dashboard({
   );
 }
 
-// ============================================
-// STAT CARD
-// ============================================
-
-function StatCard({
-  title,
-  value,
-  icon,
-  description,
-}: {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  description: string;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between">
-
-        <div>
-          <p className="text-sm font-medium text-gray-500">
-            {title}
-          </p>
-
-          <p className="mt-2 text-3xl font-bold text-gray-900">
-            {value.toLocaleString("en-IN")}
-          </p>
-        </div>
-
-        <div className="rounded-lg bg-gray-100 p-3 text-gray-700">
-          {icon}
-        </div>
-
-      </div>
-
-      <p className="mt-3 text-xs text-gray-500">
-        {description}
-      </p>
-    </div>
-  );
-}
