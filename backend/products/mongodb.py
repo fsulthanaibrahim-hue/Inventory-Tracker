@@ -58,7 +58,8 @@ def ensure_indexes():
         unique=True,
         name="username_unique_index"
     )
-
+    
+ensure_indexes()
 
 
 
