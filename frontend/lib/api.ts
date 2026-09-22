@@ -18,6 +18,10 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+/* =========================
+   AXIOS INSTANCE
+========================= */
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -51,9 +55,16 @@ async function refreshAccessToken(): Promise<string> {
   const newRefreshToken =
     response.data.refresh;
 
+  /*
+   * Some JWT refresh endpoints return
+   * only a new access token.
+   *
+   * In that case, keep the existing
+   * refresh token.
+   */
   setTokens(
     newAccessToken,
-    newRefreshToken
+    newRefreshToken || refreshToken
   );
 
   return newAccessToken;
@@ -64,7 +75,9 @@ async function refreshAccessToken(): Promise<string> {
 ========================= */
 
 api.interceptors.request.use(
-  (config) => {
+  (
+    config: InternalAxiosRequestConfig
+  ) => {
     const token = getAccessToken();
 
     if (token) {
@@ -74,6 +87,7 @@ api.interceptors.request.use(
 
     return config;
   },
+
   (error) => {
     return Promise.reject(error);
   }
@@ -84,7 +98,9 @@ api.interceptors.request.use(
 ========================= */
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    return response;
+  },
 
   async (error: AxiosError) => {
     const originalRequest =
@@ -94,6 +110,10 @@ api.interceptors.response.use(
           })
         | undefined;
 
+    /*
+     * If request is not 401,
+     * simply return the error.
+     */
     if (
       error.response?.status !== 401 ||
       !originalRequest
@@ -101,10 +121,16 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    /*
+     * Prevent infinite refresh loop.
+     */
     if (originalRequest._retry) {
       clearTokens();
 
-      if (typeof window !== "undefined") {
+      if (
+        typeof window !==
+        "undefined"
+      ) {
         window.location.href =
           "/login";
       }
@@ -112,6 +138,10 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    /*
+     * If refresh endpoint itself returns 401,
+     * logout the user.
+     */
     if (
       originalRequest.url?.includes(
         "/auth/token/refresh/"
@@ -119,7 +149,10 @@ api.interceptors.response.use(
     ) {
       clearTokens();
 
-      if (typeof window !== "undefined") {
+      if (
+        typeof window !==
+        "undefined"
+      ) {
         window.location.href =
           "/login";
       }
@@ -133,18 +166,24 @@ api.interceptors.response.use(
       const newAccessToken =
         await refreshAccessToken();
 
-      if (!originalRequest.headers) {
-        originalRequest.headers = {};
-      }
-
+      /*
+       * Add new access token to
+       * original failed request.
+       */
       originalRequest.headers.Authorization =
         `Bearer ${newAccessToken}`;
 
+      /*
+       * Retry original request.
+       */
       return api(originalRequest);
     } catch (refreshError) {
       clearTokens();
 
-      if (typeof window !== "undefined") {
+      if (
+        typeof window !==
+        "undefined"
+      ) {
         window.location.href =
           "/login";
       }
@@ -262,5 +301,9 @@ export async function getInventoryStats() {
 
   return response.data.stats;
 }
+
+/* =========================
+   DEFAULT EXPORT
+========================= */
 
 export default api;

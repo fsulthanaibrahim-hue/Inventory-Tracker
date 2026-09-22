@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
 import {
   AlertCircle,
   Boxes,
@@ -17,11 +18,20 @@ import {
   deleteProduct,
 } from "@/lib/api";
 
+import type { ProductFormData } from "@/types/product";
+
+// ============================================
+// PRODUCT TYPE
+// ============================================
+
 type Product = {
   id: string;
   name: string;
   description?: string;
-  category: "Sunglasses" | "Accessories" | "Other";
+  category:
+    | "Sunglasses"
+    | "Accessories"
+    | "Other";
   price: number | string;
   quantity: number | string;
   minimum_stock: number | string;
@@ -29,14 +39,26 @@ type Product = {
   updated_at?: string;
 };
 
+// ============================================
+// FORM TYPE
+// ============================================
+
 type FormData = {
   name: string;
   description: string;
-  category: string;
+  category:
+    | ""
+    | "Sunglasses"
+    | "Accessories"
+    | "Other";
   price: string;
   quantity: string;
   minimum_stock: string;
 };
+
+// ============================================
+// EMPTY FORM
+// ============================================
 
 const emptyForm: FormData = {
   name: "",
@@ -47,19 +69,47 @@ const emptyForm: FormData = {
   minimum_stock: "",
 };
 
+// ============================================
+// DASHBOARD
+// ============================================
+
 export default function Dashboard() {
-  const [products, setProducts] = useState<Product[]>([]);
+  // ============================================
+  // PRODUCTS
+  // ============================================
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const [error, setError] = useState("");
-
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
+  const [products, setProducts] =
+    useState<Product[]>([]);
 
   // ============================================
-  // ADD / EDIT FORM STATE
+  // LOADING
+  // ============================================
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  // ============================================
+  // ERROR
+  // ============================================
+
+  const [error, setError] =
+    useState("");
+
+  // ============================================
+  // SEARCH / CATEGORY
+  // ============================================
+
+  const [search, setSearch] =
+    useState("");
+
+  const [category, setCategory] =
+    useState("All");
+
+  // ============================================
+  // ADD / EDIT FORM
   // ============================================
 
   const [showProductForm, setShowProductForm] =
@@ -91,7 +141,9 @@ export default function Dashboard() {
       }
 
       const response = await getProducts({
-        search: search.trim() || undefined,
+        search:
+          search.trim() || undefined,
+
         category:
           category !== "All"
             ? category
@@ -99,24 +151,16 @@ export default function Dashboard() {
       });
 
       /*
-       * API response can be:
+       * getProducts() from api.ts returns:
        *
-       * 1. [products]
-       * 2. { results: [products] }
-       * 3. { products: [products] }
-       * 4. { data: [products] }
+       * response.data.products
+       *
+       * So normally `response` is already
+       * the products array.
        */
 
-      const data = response?.data ?? response;
-
-      if (Array.isArray(data)) {
-        setProducts(data);
-      } else if (Array.isArray(data?.results)) {
-        setProducts(data.results);
-      } else if (Array.isArray(data?.products)) {
-        setProducts(data.products);
-      } else if (Array.isArray(data?.data)) {
-        setProducts(data.data);
+      if (Array.isArray(response)) {
+        setProducts(response);
       } else {
         setProducts([]);
       }
@@ -147,18 +191,22 @@ export default function Dashboard() {
 
   // ============================================
   // DASHBOARD STATS
-  // ONLY TOTAL PRODUCTS + TOTAL STOCK
+  // ONLY 2 CARDS
   // ============================================
 
   const stats = useMemo(() => {
-    const totalProducts = products.length;
+    const totalProducts =
+      products.length;
 
-    const totalStock = products.reduce(
-      (total, product) =>
-        total +
-        Number(product.quantity || 0),
-      0
-    );
+    const totalStock =
+      products.reduce(
+        (total, product) =>
+          total +
+          Number(
+            product.quantity || 0
+          ),
+        0
+      );
 
     return {
       totalProducts,
@@ -172,7 +220,9 @@ export default function Dashboard() {
 
   const resetForm = () => {
     setFormData(emptyForm);
+
     setEditingProductId(null);
+
     setShowProductForm(false);
   };
 
@@ -184,27 +234,47 @@ export default function Dashboard() {
     setError("");
 
     setFormData(emptyForm);
+
     setEditingProductId(null);
+
     setShowProductForm(true);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   // ============================================
   // OPEN EDIT PRODUCT FORM
   // ============================================
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = (
+    product: Product
+  ) => {
     setError("");
 
-    setEditingProductId(product.id);
+    setEditingProductId(
+      product.id
+    );
 
     setFormData({
       name: product.name || "",
-      description: product.description || "",
-      category: product.category || "",
-      price: String(product.price ?? ""),
+
+      description:
+        product.description || "",
+
+      category:
+        product.category || "",
+
+      price: String(
+        product.price ?? ""
+      ),
+
       quantity: String(
         product.quantity ?? ""
       ),
+
       minimum_stock: String(
         product.minimum_stock ?? ""
       ),
@@ -212,7 +282,6 @@ export default function Dashboard() {
 
     setShowProductForm(true);
 
-    // Scroll to form
     window.scrollTo({
       top: 0,
       behavior: "smooth",
@@ -231,23 +300,116 @@ export default function Dashboard() {
 
     try {
       setSavingProduct(true);
+
       setError("");
 
-      const productData = {
+      // ========================================
+      // VALIDATE CATEGORY
+      // ========================================
+
+      if (
+        formData.category !==
+          "Sunglasses" &&
+        formData.category !==
+          "Accessories" &&
+        formData.category !==
+          "Other"
+      ) {
+        setError(
+          "Please select a valid category."
+        );
+
+        return;
+      }
+
+      // ========================================
+      // CREATE PRODUCT DATA
+      // ========================================
+
+      const productData: ProductFormData = {
         name: formData.name.trim(),
+
         description:
           formData.description.trim(),
+
         category:
-          formData.category as
-            | "Sunglasses"
-            | "Accessories"
-            | "Other",
-        price: Number(formData.price),
-        quantity: Number(formData.quantity),
+          formData.category,
+
+        price: Number(
+          formData.price
+        ),
+
+        quantity: Number(
+          formData.quantity
+        ),
+
         minimum_stock: Number(
           formData.minimum_stock
         ),
       };
+
+      // ========================================
+      // VALIDATE PRODUCT NAME
+      // ========================================
+
+      if (!productData.name) {
+        setError(
+          "Product name is required."
+        );
+
+        return;
+      }
+
+      // ========================================
+      // VALIDATE PRICE
+      // ========================================
+
+      if (
+        Number.isNaN(
+          productData.price
+        ) ||
+        productData.price <= 0
+      ) {
+        setError(
+          "Please enter a valid price."
+        );
+
+        return;
+      }
+
+      // ========================================
+      // VALIDATE QUANTITY
+      // ========================================
+
+      if (
+        Number.isNaN(
+          productData.quantity
+        ) ||
+        productData.quantity < 0
+      ) {
+        setError(
+          "Please enter a valid quantity."
+        );
+
+        return;
+      }
+
+      // ========================================
+      // VALIDATE MINIMUM STOCK
+      // ========================================
+
+      if (
+        Number.isNaN(
+          productData.minimum_stock
+        ) ||
+        productData.minimum_stock < 0
+      ) {
+        setError(
+          "Please enter a valid minimum stock."
+        );
+
+        return;
+      }
 
       // ========================================
       // UPDATE EXISTING PRODUCT
@@ -270,7 +432,9 @@ export default function Dashboard() {
       // CREATE NEW PRODUCT
       // ========================================
 
-      await createProduct(productData);
+      await createProduct(
+        productData
+      );
 
       resetForm();
 
@@ -302,9 +466,10 @@ export default function Dashboard() {
   const handleDelete = async (
     productId: string
   ) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this product?"
-    );
+    const confirmed =
+      window.confirm(
+        "Are you sure you want to delete this product?"
+      );
 
     if (!confirmed) {
       return;
@@ -313,18 +478,26 @@ export default function Dashboard() {
     try {
       setError("");
 
-      await deleteProduct(productId);
-
-      setProducts((currentProducts) =>
-        currentProducts.filter(
-          (product) =>
-            product.id !== productId
-        )
+      await deleteProduct(
+        productId
       );
 
-      // If currently editing this product,
-      // close the form.
-      if (editingProductId === productId) {
+      setProducts(
+        (currentProducts) =>
+          currentProducts.filter(
+            (product) =>
+              product.id !== productId
+          )
+      );
+
+      // Close edit form if the
+      // currently edited product
+      // was deleted.
+
+      if (
+        editingProductId ===
+        productId
+      ) {
         resetForm();
       }
     } catch (err) {
@@ -357,14 +530,18 @@ export default function Dashboard() {
     if (quantity === 0) {
       return {
         label: "Out of stock",
+
         className:
           "bg-red-50 text-red-700 border-red-200",
       };
     }
 
-    if (quantity <= minimumStock) {
+    if (
+      quantity <= minimumStock
+    ) {
       return {
         label: "Low stock",
+
         className:
           "bg-yellow-50 text-yellow-700 border-yellow-200",
       };
@@ -372,6 +549,7 @@ export default function Dashboard() {
 
     return {
       label: "In stock",
+
       className:
         "bg-green-50 text-green-700 border-green-200",
     };
@@ -384,9 +562,12 @@ export default function Dashboard() {
   const formatPrice = (
     price: number | string
   ) => {
-    const numericPrice = Number(price);
+    const numericPrice =
+      Number(price);
 
-    if (Number.isNaN(numericPrice)) {
+    if (
+      Number.isNaN(numericPrice)
+    ) {
       return "₹0.00";
     }
 
@@ -405,8 +586,11 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+
       <div className="flex">
+
         <main className="min-w-0 flex-1">
+
           <div className="p-4 sm:p-6 lg:p-8">
 
             {/* ========================================
@@ -414,20 +598,21 @@ export default function Dashboard() {
             ======================================== */}
 
             <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
                   Dashboard
                 </h1>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Monitor your inventory and manage
-                  your products.
+                  Monitor your inventory and
+                  manage your products.
                 </p>
               </div>
 
               <div className="flex gap-3">
 
-                {/* Refresh */}
+                {/* REFRESH */}
 
                 <button
                   type="button"
@@ -449,7 +634,7 @@ export default function Dashboard() {
                   Refresh
                 </button>
 
-                {/* Add Product */}
+                {/* ADD PRODUCT */}
 
                 <button
                   type="button"
@@ -462,6 +647,7 @@ export default function Dashboard() {
 
                   Add Product
                 </button>
+
               </div>
             </div>
 
@@ -471,12 +657,14 @@ export default function Dashboard() {
 
             {error && (
               <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+
                 <AlertCircle
                   size={20}
                   className="mt-0.5 shrink-0"
                 />
 
                 <div>
+
                   <p className="font-medium">
                     Something went wrong
                   </p>
@@ -484,7 +672,9 @@ export default function Dashboard() {
                   <p className="mt-1 text-sm">
                     {error}
                   </p>
+
                 </div>
+
               </div>
             )}
 
@@ -495,10 +685,12 @@ export default function Dashboard() {
             {showProductForm && (
               <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 
-                {/* Form Header */}
+                {/* FORM HEADER */}
 
                 <div className="mb-6 flex items-center justify-between">
+
                   <div>
+
                     <h2 className="text-lg font-semibold text-gray-900">
                       {editingProductId
                         ? "Edit Product"
@@ -510,6 +702,7 @@ export default function Dashboard() {
                         ? "Update the product details below."
                         : "Add a new product to your inventory."}
                     </p>
+
                   </div>
 
                   <button
@@ -519,20 +712,23 @@ export default function Dashboard() {
                   >
                     Cancel
                   </button>
+
                 </div>
 
-                {/* Form */}
+                {/* FORM */}
 
                 <form
                   onSubmit={
                     handleSubmitProduct
                   }
                 >
+
                   <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
-                    {/* Product Name */}
+                    {/* PRODUCT NAME */}
 
                     <div>
+
                       <label className="mb-2 block text-sm font-medium text-gray-700">
                         Product Name
                       </label>
@@ -550,11 +746,13 @@ export default function Dashboard() {
                         required
                         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                       />
+
                     </div>
 
-                    {/* Category */}
+                    {/* CATEGORY */}
 
                     <div>
+
                       <label className="mb-2 block text-sm font-medium text-gray-700">
                         Category
                       </label>
@@ -567,12 +765,13 @@ export default function Dashboard() {
                           setFormData({
                             ...formData,
                             category:
-                              event.target.value,
+                              event.target.value as FormData["category"],
                           })
                         }
                         required
                         className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                       >
+
                         <option value="">
                           Select category
                         </option>
@@ -588,12 +787,15 @@ export default function Dashboard() {
                         <option value="Other">
                           Other
                         </option>
+
                       </select>
+
                     </div>
 
-                    {/* Description */}
+                    {/* DESCRIPTION */}
 
                     <div className="md:col-span-2">
+
                       <label className="mb-2 block text-sm font-medium text-gray-700">
                         Description
                       </label>
@@ -613,22 +815,27 @@ export default function Dashboard() {
                         rows={3}
                         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                       />
+
                     </div>
 
-                    {/* Price */}
+                    {/* PRICE */}
 
                     <div>
+
                       <label className="mb-2 block text-sm font-medium text-gray-700">
                         Price
                       </label>
 
                       <input
                         type="number"
-                        value={formData.price}
+                        value={
+                          formData.price
+                        }
                         onChange={(event) =>
                           setFormData({
                             ...formData,
-                            price: event.target.value,
+                            price:
+                              event.target.value,
                           })
                         }
                         placeholder="e.g. 2500"
@@ -637,18 +844,22 @@ export default function Dashboard() {
                         required
                         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                       />
+
                     </div>
 
-                    {/* Quantity */}
+                    {/* QUANTITY */}
 
                     <div>
+
                       <label className="mb-2 block text-sm font-medium text-gray-700">
                         Quantity
                       </label>
 
                       <input
                         type="number"
-                        value={formData.quantity}
+                        value={
+                          formData.quantity
+                        }
                         onChange={(event) =>
                           setFormData({
                             ...formData,
@@ -662,11 +873,13 @@ export default function Dashboard() {
                         required
                         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                       />
+
                     </div>
 
-                    {/* Minimum Stock */}
+                    {/* MINIMUM STOCK */}
 
                     <div>
+
                       <label className="mb-2 block text-sm font-medium text-gray-700">
                         Minimum Stock
                       </label>
@@ -689,12 +902,15 @@ export default function Dashboard() {
                         required
                         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                       />
+
                     </div>
+
                   </div>
 
-                  {/* Form Buttons */}
+                  {/* FORM BUTTONS */}
 
                   <div className="mt-6 flex justify-end gap-3">
+
                     <button
                       type="button"
                       onClick={resetForm}
@@ -705,7 +921,9 @@ export default function Dashboard() {
 
                     <button
                       type="submit"
-                      disabled={savingProduct}
+                      disabled={
+                        savingProduct
+                      }
                       className="rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {savingProduct
@@ -716,26 +934,28 @@ export default function Dashboard() {
                         ? "Update Product"
                         : "Add Product"}
                     </button>
+
                   </div>
+
                 </form>
               </div>
             )}
 
             {/* ========================================
                 STAT CARDS
-                ONLY 2 CARDS
+                ONLY 2
             ======================================== */}
 
             <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
 
-              {/* ======================================
-                  TOTAL PRODUCTS
-              ====================================== */}
+              {/* TOTAL PRODUCTS */}
 
               <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+
                 <div className="flex items-start justify-between">
 
                   <div>
+
                     <p className="text-sm font-medium text-gray-500">
                       Total Products
                     </p>
@@ -749,6 +969,7 @@ export default function Dashboard() {
                     <p className="mt-3 text-xs text-gray-500">
                       Products in inventory
                     </p>
+
                   </div>
 
                   <div className="rounded-lg bg-gray-100 p-3 text-gray-700">
@@ -756,16 +977,17 @@ export default function Dashboard() {
                   </div>
 
                 </div>
+
               </div>
 
-              {/* ======================================
-                  TOTAL STOCK
-              ====================================== */}
+              {/* TOTAL STOCK */}
 
               <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+
                 <div className="flex items-start justify-between">
 
                   <div>
+
                     <p className="text-sm font-medium text-gray-500">
                       Total Stock
                     </p>
@@ -779,6 +1001,7 @@ export default function Dashboard() {
                     <p className="mt-3 text-xs text-gray-500">
                       Total available units
                     </p>
+
                   </div>
 
                   <div className="rounded-lg bg-gray-100 p-3 text-gray-700">
@@ -786,39 +1009,44 @@ export default function Dashboard() {
                   </div>
 
                 </div>
+
               </div>
 
             </div>
 
             {/* ========================================
-                INVENTORY SECTION
+                INVENTORY
             ======================================== */}
 
             <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
 
-              {/* Section Header */}
+              {/* SECTION HEADER */}
 
               <div className="border-b border-gray-200 p-4 sm:p-6">
+
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
                   <div>
+
                     <h2 className="text-lg font-semibold text-gray-900">
                       Inventory
                     </h2>
 
                     <p className="mt-1 text-sm text-gray-500">
-                      Manage your products and stock
-                      levels.
+                      Manage your products and
+                      stock levels.
                     </p>
+
                   </div>
 
-                  {/* Filters */}
+                  {/* FILTERS */}
 
                   <div className="flex flex-col gap-3 sm:flex-row">
 
-                    {/* Search */}
+                    {/* SEARCH */}
 
                     <div className="relative">
+
                       <Search
                         size={18}
                         className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -835,9 +1063,10 @@ export default function Dashboard() {
                         placeholder="Search products..."
                         className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black sm:w-64"
                       />
+
                     </div>
 
-                    {/* Category */}
+                    {/* CATEGORY */}
 
                     <select
                       value={category}
@@ -848,6 +1077,7 @@ export default function Dashboard() {
                       }
                       className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                     >
+
                       <option value="All">
                         All Categories
                       </option>
@@ -863,18 +1093,23 @@ export default function Dashboard() {
                       <option value="Other">
                         Other
                       </option>
+
                     </select>
+
                   </div>
+
                 </div>
+
               </div>
 
-              {/* ========================================
-                  LOADING
-              ======================================== */}
+              {/* LOADING */}
 
               {loading ? (
+
                 <div className="flex min-h-[300px] items-center justify-center">
+
                   <div className="text-center">
+
                     <RefreshCw
                       size={28}
                       className="mx-auto animate-spin text-gray-400"
@@ -883,16 +1118,17 @@ export default function Dashboard() {
                     <p className="mt-3 text-sm text-gray-500">
                       Loading products...
                     </p>
-                  </div>
-                </div>
-              ) : products.length ===
-                0 ? (
 
-                /* ========================================
-                   EMPTY STATE
-                ======================================== */
+                  </div>
+
+                </div>
+
+              ) : products.length === 0 ? (
+
+                /* EMPTY STATE */
 
                 <div className="flex min-h-[300px] items-center justify-center p-6">
+
                   <div className="text-center">
 
                     <Package
@@ -905,8 +1141,8 @@ export default function Dashboard() {
                     </h3>
 
                     <p className="mt-1 text-sm text-gray-500">
-                      Try changing your search or
-                      add a new product.
+                      Try changing your search
+                      or add a new product.
                     </p>
 
                     <button
@@ -920,19 +1156,21 @@ export default function Dashboard() {
 
                       Add Product
                     </button>
+
                   </div>
+
                 </div>
 
               ) : (
 
-                /* ========================================
-                   PRODUCT TABLE
-                ======================================== */
+                /* PRODUCT TABLE */
 
                 <div className="overflow-x-auto">
+
                   <table className="w-full min-w-[850px]">
 
                     <thead>
+
                       <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
 
                         <th className="px-6 py-4">
@@ -958,13 +1196,16 @@ export default function Dashboard() {
                         <th className="px-6 py-4 text-right">
                           Actions
                         </th>
+
                       </tr>
+
                     </thead>
 
                     <tbody className="divide-y divide-gray-100">
 
                       {products.map(
                         (product) => {
+
                           const stockStatus =
                             getStockStatus(
                               product
@@ -978,10 +1219,12 @@ export default function Dashboard() {
                               className="hover:bg-gray-50"
                             >
 
-                              {/* Product */}
+                              {/* PRODUCT */}
 
                               <td className="px-6 py-4">
+
                                 <div>
+
                                   <p className="font-medium text-gray-900">
                                     {
                                       product.name
@@ -995,20 +1238,24 @@ export default function Dashboard() {
                                       }
                                     </p>
                                   )}
+
                                 </div>
+
                               </td>
 
-                              {/* Category */}
+                              {/* CATEGORY */}
 
                               <td className="px-6 py-4">
+
                                 <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
                                   {
                                     product.category
                                   }
                                 </span>
+
                               </td>
 
-                              {/* Price */}
+                              {/* PRICE */}
 
                               <td className="px-6 py-4 text-sm font-medium text-gray-900">
                                 {formatPrice(
@@ -1016,10 +1263,12 @@ export default function Dashboard() {
                                 )}
                               </td>
 
-                              {/* Stock */}
+                              {/* STOCK */}
 
                               <td className="px-6 py-4">
+
                                 <div>
+
                                   <p className="font-medium text-gray-900">
                                     {Number(
                                       product.quantity ||
@@ -1034,12 +1283,15 @@ export default function Dashboard() {
                                         0
                                     )}
                                   </p>
+
                                 </div>
+
                               </td>
 
-                              {/* Status */}
+                              {/* STATUS */}
 
                               <td className="px-6 py-4">
+
                                 <span
                                   className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${stockStatus.className}`}
                                 >
@@ -1047,11 +1299,13 @@ export default function Dashboard() {
                                     stockStatus.label
                                   }
                                 </span>
+
                               </td>
 
-                              {/* Actions */}
+                              {/* ACTIONS */}
 
                               <td className="px-6 py-4">
+
                                 <div className="flex items-center justify-end gap-2">
 
                                   {/* EDIT */}
@@ -1083,6 +1337,7 @@ export default function Dashboard() {
                                   </button>
 
                                 </div>
+
                               </td>
 
                             </tr>
@@ -1091,37 +1346,48 @@ export default function Dashboard() {
                       )}
 
                     </tbody>
+
                   </table>
+
                 </div>
               )}
 
-              {/* ========================================
-                  FOOTER
-              ======================================== */}
+              {/* FOOTER */}
 
               {!loading &&
                 products.length > 0 && (
+
                   <div className="border-t border-gray-200 px-6 py-4">
+
                     <p className="text-sm text-gray-500">
+
                       Showing{" "}
+
                       <span className="font-medium text-gray-900">
                         {
                           products.length
                         }
                       </span>{" "}
+
                       product
                       {products.length !==
                       1
                         ? "s"
                         : ""}
+
                     </p>
+
                   </div>
                 )}
+
             </section>
+
           </div>
+
         </main>
+
       </div>
+
     </div>
   );
 }
-
