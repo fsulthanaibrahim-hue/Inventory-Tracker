@@ -69,4 +69,3 @@ def ensure_indexes():
 ensure_indexes()
 
 
-    
