@@ -45,6 +45,12 @@ def ensure_indexes():
         name="product_name_index"
     )
 
+    # Product user index
+    products_collection.create_index(
+        [("user_id", 1)],
+        name="product_user_index"
+    )
+
     # User email index
     users_collection.create_index(
         [("email", 1)],
@@ -58,9 +64,9 @@ def ensure_indexes():
         unique=True,
         name="username_unique_index"
     )
-    
-ensure_indexes()
 
+
+ensure_indexes()
 
 
     

@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
+
 from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo import ReturnDocument
+
 from .mongodb import products_collection
 
 
@@ -30,10 +32,11 @@ def serialize_product(product):
     }
 
 
-def create_product(data):
+def create_product(data, user_id):
     now = datetime.now(timezone.utc)
 
     product = {
+        "user_id": user_id,
         "name": data["name"],
         "description": data.get("description", ""),
         "category": data["category"],
@@ -46,11 +49,14 @@ def create_product(data):
 
     result = products_collection.insert_one(product)
     product["_id"] = result.inserted_id
+
     return serialize_product(product)
 
 
-def get_products(search=None, category=None):
-    query = {}
+def get_products(user_id, search=None, category=None):
+    query = {
+        "user_id": user_id
+    }
 
     if search:
         query["name"] = {
@@ -73,20 +79,21 @@ def get_products(search=None, category=None):
     ]
 
 
-def get_product(product_id):
+def get_product(product_id, user_id):
     try:
         object_id = ObjectId(product_id)
     except (InvalidId, TypeError):
         return None
 
     product = products_collection.find_one({
-        "_id": object_id
+        "_id": object_id,
+        "user_id": user_id,
     })
 
     return serialize_product(product)
 
 
-def update_product(product_id, data):
+def update_product(product_id, data, user_id):
     try:
         object_id = ObjectId(product_id)
     except (InvalidId, TypeError):
@@ -103,28 +110,34 @@ def update_product(product_id, data):
     }
 
     product = products_collection.find_one_and_update(
-        {"_id": object_id},
-        {"$set": update_data},
+        {
+            "_id": object_id,
+            "user_id": user_id,
+        },
+        {
+            "$set": update_data
+        },
         return_document=ReturnDocument.AFTER,
     )
 
     return serialize_product(product)
 
 
-def delete_product(product_id):
+def delete_product(product_id, user_id):
     try:
         object_id = ObjectId(product_id)
     except (InvalidId, TypeError):
         return False
 
     result = products_collection.delete_one({
-        "_id": object_id
+        "_id": object_id,
+        "user_id": user_id,
     })
 
     return result.deleted_count > 0
 
 
-def update_stock(product_id, action, amount):
+def update_stock(product_id, action, amount, user_id):
     try:
         object_id = ObjectId(product_id)
     except (InvalidId, TypeError):
@@ -134,7 +147,10 @@ def update_stock(product_id, action, amount):
 
     if action == "add":
         product = products_collection.find_one_and_update(
-            {"_id": object_id},
+            {
+                "_id": object_id,
+                "user_id": user_id,
+            },
             {
                 "$inc": {
                     "quantity": amount
@@ -152,6 +168,7 @@ def update_stock(product_id, action, amount):
         product = products_collection.find_one_and_update(
             {
                 "_id": object_id,
+                "user_id": user_id,
                 "quantity": {
                     "$gte": amount
                 },
@@ -172,11 +189,20 @@ def update_stock(product_id, action, amount):
     return None
 
 
-def get_inventory_stats():
-    total_products = products_collection.count_documents({})
+def get_inventory_stats(user_id):
+    user_query = {
+        "user_id": user_id
+    }
+
+    total_products = products_collection.count_documents(
+        user_query
+    )
 
     total_stock_result = list(
         products_collection.aggregate([
+            {
+                "$match": user_query
+            },
             {
                 "$group": {
                     "_id": None,
@@ -195,6 +221,7 @@ def get_inventory_stats():
     )
 
     low_stock = products_collection.count_documents({
+        "user_id": user_id,
         "$expr": {
             "$and": [
                 {
@@ -214,6 +241,7 @@ def get_inventory_stats():
     })
 
     out_of_stock = products_collection.count_documents({
+        "user_id": user_id,
         "quantity": 0
     })
 

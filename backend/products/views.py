@@ -26,6 +26,7 @@ class ProductListCreateView(APIView):
         category = request.query_params.get("category")
 
         products = get_products(
+            user_id=request.user.id,
             search=search,
             category=category,
         )
@@ -43,7 +44,8 @@ class ProductListCreateView(APIView):
         serializer.is_valid(raise_exception=True)
 
         product = create_product(
-            serializer.validated_data
+            serializer.validated_data,
+            user_id=request.user.id,
         )
 
         return Response(
@@ -60,7 +62,10 @@ class ProductDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, product_id):
-        product = get_product(product_id)
+        product = get_product(
+            product_id,
+            user_id=request.user.id,
+        )
 
         if not product:
             return Response(
@@ -86,6 +91,7 @@ class ProductDetailView(APIView):
         product = update_product(
             product_id,
             serializer.validated_data,
+            user_id=request.user.id,
         )
 
         if not product:
@@ -104,7 +110,10 @@ class ProductDetailView(APIView):
         })
 
     def delete(self, request, product_id):
-        deleted = delete_product(product_id)
+        deleted = delete_product(
+            product_id,
+            user_id=request.user.id,
+        )
 
         if not deleted:
             return Response(
@@ -135,6 +144,7 @@ class StockUpdateView(APIView):
             product_id,
             serializer.validated_data["action"],
             serializer.validated_data["quantity"],
+            user_id=request.user.id,
         )
 
         if not product:
@@ -160,7 +170,9 @@ class InventoryStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        stats = get_inventory_stats()
+        stats = get_inventory_stats(
+            user_id=request.user.id
+        )
 
         return Response({
             "success": True,
